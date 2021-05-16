@@ -1,20 +1,32 @@
 //Line6 Loop Pedal Emulation
 //(condensed into one SynthDef)
 //FEEDBACK WARNING! USE HEADPHONES!
-
+s.quit;
 (
 ~mainOut = 0;
 ~micIn = 0;
-~num = 0;
-~overdub = false;
+~num = [];
+~overdub = [];
+~track = 0;
+
+2.do({
+	~num = ~num.add(0);
+	~overdub = ~overdub.add(false);
+});
+
 
 
 s.waitForBoot({
 	MIDIIn.connectAll;
 	Buffer.freeAll;
 	s.sync;
-	~b = Buffer.alloc(s, s.sampleRate * 300);
-	~b2 = Buffer.alloc(s, s.sampleRate * 300);
+	//~b = Buffer.alloc(s, s.sampleRate * 300);
+	~buffers = [];
+	2.do({
+		~buffers = ~buffers.add(
+			Buffer.alloc(s, s.sampleRate * 300)
+		);
+	});
 
 	SynthDef(\looper, {
 		var mic, trig, max, ptr, loop, rec, mix;
@@ -39,49 +51,18 @@ s.waitForBoot({
 		Out.ar(\out.ir(0), mix!2);
 	}).add;
 
-	~loop_start = {
-		arg loop;
-		loop.set(\trig, 1, \run, 1, \reclev, 1, \prelev, 1, \xfade, 0.02);
-	};
-
-	~loop_overdub = {
-		arg loop;
-		loop.set(\run, 0, \reclev, 1, \prelev, -1.dbamp);
-	};
-
-	~loop_stop_rec_continue_loop = {
-		arg loop;
-		loop.set(\run, 0, \reclev, 0, \prelev, 1);
-	};
-
-	~loop_iteration = {
-		arg loop;
-			if (~num % 2 == 0,
-			{
-				if (~overdub == false,{
-					~loop_start.value(loop);
-					~overdub = true;
-				}, {
-					~loop_overdub.value(loop);
-				});
-
-			},
-			{~loop_stop_rec_continue_loop.value(loop)}
-			);
-			~num = ~num +1;
-	};
-
 
 	MIDIdef.noteOn(\on, {
 		arg val, num, chan, src;
 		num.postln;
 		switch (num,
-			44,   { ~track = 1;},
-			45,   { ~track = 2;},
+			44,   { ~track = 0;},
+			45,   { ~track = 1;},
+			46,   { s.freeAll;},
 			48, {
-				~b.zero; ~looper.set(\trig, 1, \run, 0, \reclev, 0, \prelev, 0, \xfade, 0.02);
-				~overdub = false;
-				~num = 0;
+				~buffers[~track].zero; ~loopers[~track].set(\trig, 1, \run, 0, \reclev, 0, \prelev, 0, \xfade, 0.02);
+				~overdub[~track] = false;
+				~num[~track] = 0;
 			 }
 		);
 
@@ -90,37 +71,49 @@ s.waitForBoot({
 	MIDIdef.cc(\te, {
 		arg val, num, chan, src;
 		num.postln;
-		~loop_iteration.value(~looper, ~num, ~overdub);
-		/*if ( val == 0 && num == 64, {
-			if (~num % 2 == 0,
+
+		if ( val == 0 && num == 64, {
+			if (~num[~track] % 2 == 0,
 			{
-				if (~overdub == false,{
-					~looper.set(\trig, 1, \run, 1, \reclev, 1, \prelev, 1, \xfade, 0.02);
-					~overdub = true;
+				if (~overdub[~track] == false,{
+					~loopers[~track].set(\trig, 1, \run, 1, \reclev, 1, \prelev, 1, \xfade, 0.02);
+					~overdub[~track] = true;
 				}, {
-					~looper.set(\run, 0, \reclev, 1, \prelev, -1.dbamp);
+					~loopers[~track].set(\run, 0, \reclev, 1, \prelev, -1.dbamp);
 				});
 
 
 			},
-			{~looper.set(\run, 0, \reclev, 0, \prelev, 1);}
+			{~loopers[~track].set(\run, 0, \reclev, 0, \prelev, 1);}
 			);
-			~num = ~num +1;
-		});*/
+			~num[~track] = ~num[~track] +1;
+		});
 	});
 
 
 
 	s.sync;
 
-	~looper = Synth(
+	/*~looper = Synth(
 		\looper, [
 			\in, ~micIn,
 			\buf, ~b.bufnum,
 			\out, ~mainOut
 		]
-	);
+	);*/
+
+	~loopers = [];
+	2.do({ arg i;
+		~loopers = ~loopers.add(
+			Synth( \looper, [ \in, ~micIn, \buf, ~buffers[i].bufnum, \out, ~mainOut])
+		);
+	});
+
 
 });
 )
 
+
+
+s.plotTree;
+s.freeAll;
