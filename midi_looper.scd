@@ -7,7 +7,7 @@
 ~micIn = 0;
 ~num = 0;
 ~overdub = false;
-~track = 1;
+
 
 s.waitForBoot({
 	MIDIIn.connectAll;
@@ -38,54 +38,39 @@ s.waitForBoot({
 		mix = mix * \mixAmp.kr(1).varlag(xfade,-2);
 		Out.ar(\out.ir(0), mix!2);
 	}).add;
-	
-	
-	~looper_kill = {
-		arg loop, buffer;
-		buffer.zero; loop.set(\trig, 1, \run, 0, \reclev, 0, \prelev, 0, \xfade, 0.02);
-	};
-	
-	~looper_start = {
-		arg loop;
-		loop.set(\trig, 1, \run, 1, \reclev, 1, \prelev, 1, \xfade, 0.02);
-	};
-	 
-	~looper_overdub = {
-		arg loop;
-		loop.set(\run, 0, \reclev, 1, \prelev, -1.dbamp);
-	};   
+
 
 	MIDIdef.noteOn(\on, {
 		arg val, num, chan, src;
-
+		num.postln;
 		switch (num,
 			44,   { ~track = 1;},
 			45,   { ~track = 2;},
 			48, {
-				/*~b.zero; ~looper.set(\trig, 1, \run, 0, \reclev, 0, \prelev, 0, \xfade, 0.02);
+				~b.zero; ~looper.set(\trig, 1, \run, 0, \reclev, 0, \prelev, 0, \xfade, 0.02);
 				~overdub = false;
-				~num = 0;*/
-				if (~track == 1, {~looper_kill(\loop, ~looper, \buffer, ~b);} , {~looper_kill(\loop, ~looper2, \buffer, ~b2);});
+				~num = 0;
 			 }
 		);
 
 	});
-	
+
 	MIDIdef.cc(\te, {
 		arg val, num, chan, src;
+		num.postln;
 		if ( val == 0 && num == 64, {
 			if (~num % 2 == 0,
-				{
-				if (~overdub == false,{ 
+			{
+				if (~overdub == false,{
 					~looper.set(\trig, 1, \run, 1, \reclev, 1, \prelev, 1, \xfade, 0.02);
 					~overdub = true;
 				}, {
 					~looper.set(\run, 0, \reclev, 1, \prelev, -1.dbamp);
 				});
-				
-				
-				},
-				{~looper.set(\run, 0, \reclev, 0, \prelev, 1);}
+
+
+			},
+			{~looper.set(\run, 0, \reclev, 0, \prelev, 1);}
 			);
 			~num = ~num +1;
 		});
@@ -102,14 +87,7 @@ s.waitForBoot({
 			\out, ~mainOut
 		]
 	);
-	
-	~looper2 = Synth(
-		\looper, [
-			\in, ~micIn,
-			\buf, ~b2.bufnum,
-			\out, ~mainOut
-		]
-	);
+
 });
 )
 
