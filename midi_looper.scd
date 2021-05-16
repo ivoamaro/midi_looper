@@ -1,28 +1,28 @@
 //Line6 Loop Pedal Emulation
 //(condensed into one SynthDef)
 //FEEDBACK WARNING! USE HEADPHONES!
-s.quit;
+
 (
 ~mainOut = 0;
 ~micIn = 0;
 ~num = [];
 ~overdub = [];
 ~track = 0;
+~track_number = 4;
 
-2.do({
+~track_number.do({
 	~num = ~num.add(0);
 	~overdub = ~overdub.add(false);
 });
-
 
 
 s.waitForBoot({
 	MIDIIn.connectAll;
 	Buffer.freeAll;
 	s.sync;
-	//~b = Buffer.alloc(s, s.sampleRate * 300);
+
 	~buffers = [];
-	2.do({
+	~track_number.do({
 		~buffers = ~buffers.add(
 			Buffer.alloc(s, s.sampleRate * 300)
 		);
@@ -58,21 +58,33 @@ s.waitForBoot({
 		switch (num,
 			44,   { ~track = 0;},
 			45,   { ~track = 1;},
-			46,   { s.freeAll;},
-			48, {
+			46,   { ~track = 2;},
+			47,   { ~track = 3;},
+			48,   {
+				//free all buffers
+				~track_number.do({ arg i;
+					~buffers[i].zero; ~loopers[i].set(\trig, 1, \run, 0, \reclev, 0, \prelev, 0, \xfade, 0.02);
+					~overdub[i] = false;
+					~num[i] = 0;
+					~track = 0;
+				});
+			},
+			49, {
+				//free specific buffer
 				~buffers[~track].zero; ~loopers[~track].set(\trig, 1, \run, 0, \reclev, 0, \prelev, 0, \xfade, 0.02);
 				~overdub[~track] = false;
 				~num[~track] = 0;
-			 }
+			 },
+			50,   { ~loopers[~track].set(\loopAmp, 0, \xfade, 1);},
+			51,   { ~loopers[~track].set(\loopAmp, 1, \xfade, 1);},
 		);
 
 	});
 
 	MIDIdef.cc(\te, {
 		arg val, num, chan, src;
-		num.postln;
-
 		if ( val == 0 && num == 64, {
+			num.postln;
 			if (~num[~track] % 2 == 0,
 			{
 				if (~overdub[~track] == false,{
@@ -81,8 +93,6 @@ s.waitForBoot({
 				}, {
 					~loopers[~track].set(\run, 0, \reclev, 1, \prelev, -1.dbamp);
 				});
-
-
 			},
 			{~loopers[~track].set(\run, 0, \reclev, 0, \prelev, 1);}
 			);
@@ -94,16 +104,8 @@ s.waitForBoot({
 
 	s.sync;
 
-	/*~looper = Synth(
-		\looper, [
-			\in, ~micIn,
-			\buf, ~b.bufnum,
-			\out, ~mainOut
-		]
-	);*/
-
 	~loopers = [];
-	2.do({ arg i;
+	~track_number.do({ arg i;
 		~loopers = ~loopers.add(
 			Synth( \looper, [ \in, ~micIn, \buf, ~buffers[i].bufnum, \out, ~mainOut])
 		);
@@ -112,8 +114,3 @@ s.waitForBoot({
 
 });
 )
-
-
-
-s.plotTree;
-s.freeAll;
