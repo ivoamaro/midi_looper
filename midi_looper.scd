@@ -39,6 +39,38 @@ s.waitForBoot({
 		Out.ar(\out.ir(0), mix!2);
 	}).add;
 
+	~loop_start = {
+		arg loop;
+		loop.set(\trig, 1, \run, 1, \reclev, 1, \prelev, 1, \xfade, 0.02);
+	};
+
+	~loop_overdub = {
+		arg loop;
+		loop.set(\run, 0, \reclev, 1, \prelev, -1.dbamp);
+	};
+
+	~loop_stop_rec_continue_loop = {
+		arg loop;
+		loop.set(\run, 0, \reclev, 0, \prelev, 1);
+	};
+
+	~loop_iteration = {
+		arg loop;
+			if (~num % 2 == 0,
+			{
+				if (~overdub == false,{
+					~loop_start.value(loop);
+					~overdub = true;
+				}, {
+					~loop_overdub.value(loop);
+				});
+
+			},
+			{~loop_stop_rec_continue_loop.value(loop)}
+			);
+			~num = ~num +1;
+	};
+
 
 	MIDIdef.noteOn(\on, {
 		arg val, num, chan, src;
@@ -58,7 +90,8 @@ s.waitForBoot({
 	MIDIdef.cc(\te, {
 		arg val, num, chan, src;
 		num.postln;
-		if ( val == 0 && num == 64, {
+		~loop_iteration.value(~looper, ~num, ~overdub);
+		/*if ( val == 0 && num == 64, {
 			if (~num % 2 == 0,
 			{
 				if (~overdub == false,{
@@ -73,7 +106,7 @@ s.waitForBoot({
 			{~looper.set(\run, 0, \reclev, 0, \prelev, 1);}
 			);
 			~num = ~num +1;
-		});
+		});*/
 	});
 
 
