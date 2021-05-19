@@ -1,25 +1,26 @@
-//Line6 Loop Pedal Emulation
-//(condensed into one SynthDef)
-//FEEDBACK WARNING! USE HEADPHONES!
 
 (
-~mainOut = 0;
-~micIn = 0;
+Server.killAll;
+~track_number = 4;
+~track = 0;
 ~num = [];
 ~overdub = [];
-~track = 0;
-~track_number = 4;
-
 ~track_number.do({
 	~num = ~num.add(0);
 	~overdub = ~overdub.add(false);
 });
 
 
+~mainOut = 0;
+~micIn = 0;
+~ptrBus = Bus.audio(s,1);
+~micBus = Bus.audio(s,1);
 s.waitForBoot({
 	MIDIIn.connectAll;
 	Buffer.freeAll;
 	s.sync;
+	~b = Buffer.alloc(s, s.sampleRate * 300);
+	~b2 = Buffer.alloc(s, s.sampleRate * 300);
 
 	~buffers = [];
 	~track_number.do({
@@ -28,14 +29,26 @@ s.waitForBoot({
 		);
 	});
 
-	SynthDef(\looper, {
-		var mic, trig, max, ptr, loop, rec, mix;
-		var xfade = \xfade.kr(0.02);
-		var buf = \buf.kr(0);
-		mic = SoundIn.ar(\in.ir(0));
+	SynthDef(\mic, {
+		var sig;
+		sig = SoundIn.ar(\in.ar(0));
+		Out.ar(\outMic.ir(0), sig);
+	}).add;
+
+	SynthDef(\pointer, {
+		var trig, max,ptr;
 		trig = Trig1.ar(\trig.tr(0), ControlDur.ir);
 		max = Sweep.ar(trig, SampleRate.ir * \run.kr(0));
 		ptr = Phasor.ar(trig, 1, 0, max, 0);
+		Out.ar(\outPointer.ir(0), ptr);
+	}).add;
+
+	SynthDef(\looper, {
+		var mic, ptr, loop, rec, mix;
+		var xfade = \xfade.kr(0.02);
+		var buf = \buf.kr(0);
+		mic = In.ar(\inMic.ir(0), 1);
+		ptr = In.ar(\inPointer.ir(0), 1);
 		loop = BufRd.ar(1, buf, ptr);
 		rec = sum([
 			mic * \reclev.kr(0).varlag(xfade,-2),
@@ -52,7 +65,9 @@ s.waitForBoot({
 	}).add;
 
 
-	MIDIdef.noteOn(\on, {
+	s.sync;
+
+		MIDIdef.noteOn(\on, {
 		arg val, num, chan, src;
 		num.postln;
 		switch (num,
@@ -63,7 +78,8 @@ s.waitForBoot({
 			48,   {
 				//free all buffers
 				~track_number.do({ arg i;
-					~buffers[i].zero; ~loopers[i].set(\trig, 1, \run, 0, \reclev, 0, \prelev, 0, \xfade, 0.02);
+					~ptrSynth.set(\trig, 1, \run, 0);
+					~buffers[i].zero; ~loopers[i].set(\reclev, 0, \prelev, 0, \xfade, 0.02);
 					~overdub[i] = false;
 					~num[i] = 0;
 					~track = 0;
@@ -71,7 +87,7 @@ s.waitForBoot({
 			},
 			49, {
 				//free specific buffer
-				~buffers[~track].zero; ~loopers[~track].set(\trig, 1, \run, 0, \reclev, 0, \prelev, 0, \xfade, 0.02);
+				~buffers[~track].zero; ~loopers[~track].set(\reclev, 0, \prelev, 0, \xfade, 0.02);
 				~overdub[~track] = false;
 				~num[~track] = 0;
 			 },
@@ -81,35 +97,37 @@ s.waitForBoot({
 
 	});
 
-	MIDIdef.cc(\te, {
+	MIDIdef.cc(\cc, {
 		arg val, num, chan, src;
+
 		if ( val == 0 && num == 64, {
 			num.postln;
 			if (~num[~track] % 2 == 0,
 			{
 				if (~overdub[~track] == false,{
-					~loopers[~track].set(\trig, 1, \run, 1, \reclev, 1, \prelev, 1, \xfade, 0.02);
+					~ptrSynth.set(\trig, 1, \run, 1);
+					~loopers[~track].set(\reclev, 1, \prelev, 1, \xfade, 0.02);
 					~overdub[~track] = true;
 				}, {
-					~loopers[~track].set(\run, 0, \reclev, 1, \prelev, -1.dbamp);
+					~ptrSynth.set(\run, 0);
+					~loopers[~track].set( \reclev, 1, \prelev, -1.dbamp);
 				});
 			},
-			{~loopers[~track].set(\run, 0, \reclev, 0, \prelev, 1);}
+			{~ptrSynth.set(\run, 0); ~loopers[~track].set(\reclev, 0, \prelev, 1);}
 			);
 			~num[~track] = ~num[~track] +1;
 		});
 	});
 
-
-
-	s.sync;
-
 	~loopers = [];
 	~track_number.do({ arg i;
 		~loopers = ~loopers.add(
-			Synth( \looper, [ \in, ~micIn, \buf, ~buffers[i].bufnum, \out, ~mainOut])
+			Synth( \looper, [ \inMic, ~micBus, \buf, ~buffers[i].bufnum, \out, ~mainOut, \inPointer, ~ptrBus]);
 		);
 	});
+
+	~mic = Synth(\mic, [\in, ~micIn, \outMic, ~micBus]);
+	~ptrSynth = Synth(\pointer, [ \outPointer, ~ptrBus, ]);
 
 
 });
