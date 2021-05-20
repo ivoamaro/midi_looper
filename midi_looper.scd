@@ -1,4 +1,5 @@
 
+s.plotTree;
 (
 Server.killAll;
 ~track_number = 4;
@@ -18,9 +19,7 @@ Server.killAll;
 s.waitForBoot({
 	MIDIIn.connectAll;
 	Buffer.freeAll;
-	s.sync;
-	~b = Buffer.alloc(s, s.sampleRate * 300);
-	~b2 = Buffer.alloc(s, s.sampleRate * 300);
+	s.sync;—
 
 	~buffers = [];
 	~track_number.do({
@@ -47,7 +46,7 @@ s.waitForBoot({
 		var mic, ptr, loop, rec, mix;
 		var xfade = \xfade.kr(0.02);
 		var buf = \buf.kr(0);
-		mic = In.ar(\inMic.ir(0), 1);
+		mic = In.ar(\inMic.ir(0), 1) * (1/~track_number);
 		ptr = In.ar(\inPointer.ir(0), 1);
 		loop = BufRd.ar(1, buf, ptr);
 		rec = sum([
@@ -67,7 +66,7 @@ s.waitForBoot({
 
 	s.sync;
 
-		MIDIdef.noteOn(\on, {
+	MIDIdef.noteOn(\on, {
 		arg val, num, chan, src;
 		num.postln;
 		switch (num,
@@ -105,15 +104,15 @@ s.waitForBoot({
 			if (~num[~track] % 2 == 0,
 			{
 				if (~overdub[~track] == false,{
-					~ptrSynth.set(\trig, 1, \run, 1);
+					if (~track == 0 ,{~ptrSynth.set(\trig, 1, \run, 1);});
 					~loopers[~track].set(\reclev, 1, \prelev, 1, \xfade, 0.02);
 					~overdub[~track] = true;
 				}, {
-					~ptrSynth.set(\run, 0);
-					~loopers[~track].set( \reclev, 1, \prelev, -1.dbamp);
+					if (~track == 0 ,{~ptrSynth.set(\run, 0);});
+					~loopers[~track].set( \reclev, 1, \prelev, 1);
 				});
 			},
-			{~ptrSynth.set(\run, 0); ~loopers[~track].set(\reclev, 0, \prelev, 1);}
+			{if (~track == 0 ,{~ptrSynth.set(\run, 0);}); ~loopers[~track].set(\reclev, 0, \prelev, 1);}
 			);
 			~num[~track] = ~num[~track] +1;
 		});
